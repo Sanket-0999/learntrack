@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import tzlookup from 'tz-lookup'
 import {
   ArrowRight,
   Check,
@@ -21,9 +22,18 @@ type FormState = {
   date: string
   time: string
   place: string
+  latitude?: number
+  longitude?: number
 }
 
 type Position = [string, string, string, string]
+
+type PlaceSuggestion = {
+  display_name: string
+  lat: string
+  lon: string
+  type: string
+}
 
 type Reading = {
   westernSun: string
@@ -85,9 +95,12 @@ const ordinal = (value: number) => {
   return `${value}th`
 }
 
-const timezoneFor = (place: string, date: string, time: string) => {
+const timezoneFor = (place: string, date: string, time: string, latitude?: number, longitude?: number) => {
   const placeKey = place.trim().toLowerCase()
-  const zone = Object.entries(placeDatabase).find(([city]) => placeKey.includes(city))?.[1]
+  let zone = Object.entries(placeDatabase).find(([city]) => placeKey.includes(city))?.[1]
+  if (!zone && latitude !== undefined && longitude !== undefined) {
+    try { zone = tzlookup(latitude, longitude) } catch { zone = undefined }
+  }
   if (!zone) return 'Enter a recognized city or country to resolve timezone'
   const localDate = new Date(`${date || '2000-01-01'}T${time || '12:00'}:00`)
   try {
@@ -132,7 +145,7 @@ const createReading = (birth: FormState): Reading => {
     return { planet, label: `${planet} period`, years: `${startYear} — ${startYear + (index === 0 ? 1 : 2)}`, current: index === 0 }
   })
   const sign = westernSunFor(birth.date)
-  const timezone = timezoneFor(birth.place, birth.date, birth.time)
+  const timezone = timezoneFor(birth.place, birth.date, birth.time, birth.latitude, birth.longitude)
   const mahaDasha = timeline[0].planet
   const antarDasha = dashaPlanets[(startIndex + 1) % dashaPlanets.length]
   const sadeSati = ['Kumbha', 'Meena', 'Mesha'].includes(moonSigns[moonIndex])
@@ -173,9 +186,38 @@ function App() {
   const [generated, setGenerated] = useState(true)
   const [reading, setReading] = useState(() => createReading(initialForm))
   const [welcomed, setWelcomed] = useState(false)
+  const [placeSuggestions, setPlaceSuggestions] = useState<PlaceSuggestion[]>([])
+  const [placeSearchLoading, setPlaceSearchLoading] = useState(false)
 
   const updateField = (field: keyof FormState, value: string) => {
     setForm((current) => ({ ...current, [field]: value }))
+    if (field === 'place') setPlaceSuggestions([])
+  }
+
+  useEffect(() => {
+    const query = form.place.trim()
+    if (query.length < 3 || Object.keys(placeDatabase).some((city) => query.toLowerCase() === city)) {
+      setPlaceSuggestions([])
+      return
+    }
+    const controller = new AbortController()
+    const timer = window.setTimeout(async () => {
+      setPlaceSearchLoading(true)
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&featuretype=city&q=${encodeURIComponent(query)}`, { headers: { Accept: 'application/json' }, signal: controller.signal })
+        if (response.ok) setPlaceSuggestions(await response.json() as PlaceSuggestion[])
+      } catch {
+        if (!controller.signal.aborted) setPlaceSuggestions([])
+      } finally {
+        if (!controller.signal.aborted) setPlaceSearchLoading(false)
+      }
+    }, 350)
+    return () => { window.clearTimeout(timer); controller.abort() }
+  }, [form.place])
+
+  const selectPlace = (suggestion: PlaceSuggestion) => {
+    setForm((current) => ({ ...current, place: suggestion.display_name, latitude: Number(suggestion.lat), longitude: Number(suggestion.lon) }))
+    setPlaceSuggestions([])
   }
 
   const generateChart = () => {
@@ -239,9 +281,8 @@ function App() {
                 <label>Date of birth<input type="date" value={form.date} onChange={(event) => updateField('date', event.target.value)} /></label>
                 <label>Local time<input type="time" value={form.time} onChange={(event) => updateField('time', event.target.value)} /></label>
               </div>
-              <label>Birthplace<div className="input-with-icon"><Globe2 size={16} /><input list="place-suggestions" placeholder="City, country" value={form.place} onChange={(event) => updateField('place', event.target.value)} /></div></label>
-              <datalist id="place-suggestions"><option value="Bengaluru, India" /><option value="London, United Kingdom" /><option value="New York, United States" /><option value="Sydney, Australia" /><option value="Dubai, UAE" /><option value="Singapore" /><option value="Tokyo, Japan" /><option value="Paris, France" /></datalist>
-              <p className="timezone-note"><span className="status-dot" /> {timezoneFor(form.place, form.date, form.time)}</p>
+              <label className="place-field">Birthplace<div className="input-with-icon"><Globe2 size={16} /><input autoComplete="off" placeholder="Search city or country" value={form.place} onChange={(event) => updateField('place', event.target.value)} /></div>{placeSearchLoading && <span className="place-status">Searching places...</span>}{placeSuggestions.length > 0 && <div className="place-suggestions">{placeSuggestions.map((suggestion) => <button type="button" key={`${suggestion.lat}-${suggestion.lon}`} onClick={() => selectPlace(suggestion)}><Globe2 size={14} /><span>{suggestion.display_name}</span></button>)}</div>}</label>
+              <p className="timezone-note"><span className="status-dot" /> {timezoneFor(form.place, form.date, form.time, form.latitude, form.longitude)}</p>
               <button className="primary-button" type="submit">Update my reading <ArrowRight size={17} /></button>
             </form>
             <div className="privacy-note"><LockKeyhole size={15} /><span>Your birth details are private and never sold.</span></div>
