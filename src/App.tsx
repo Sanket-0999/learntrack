@@ -53,12 +53,12 @@ const initialForm: FormState = {
 }
 
 const placeDatabase: Record<string, string> = {
-  bengaluru: 'Asia/Kolkata (UTC +05:30)',
-  bangalore: 'Asia/Kolkata (UTC +05:30)',
-  london: 'Europe/London (historical DST applied)',
-  'new york': 'America/New_York (historical DST applied)',
-  sydney: 'Australia/Sydney (historical DST applied)',
-  mumbai: 'Asia/Kolkata (UTC +05:30)',
+  bengaluru: 'Asia/Kolkata', bangalore: 'Asia/Kolkata', mumbai: 'Asia/Kolkata', delhi: 'Asia/Kolkata', kolkata: 'Asia/Kolkata', chennai: 'Asia/Kolkata', hyderabad: 'Asia/Kolkata', pune: 'Asia/Kolkata', india: 'Asia/Kolkata',
+  london: 'Europe/London', manchester: 'Europe/London', uk: 'Europe/London', england: 'Europe/London',
+  'new york': 'America/New_York', toronto: 'America/Toronto', chicago: 'America/Chicago', 'los angeles': 'America/Los_Angeles', usa: 'America/New_York', canada: 'America/Toronto',
+  sydney: 'Australia/Sydney', melbourne: 'Australia/Melbourne', australia: 'Australia/Sydney',
+  dubai: 'Asia/Dubai', uae: 'Asia/Dubai', singapore: 'Asia/Singapore', tokyo: 'Asia/Tokyo', japan: 'Asia/Tokyo',
+  paris: 'Europe/Paris', berlin: 'Europe/Berlin', germany: 'Europe/Berlin', france: 'Europe/Paris',
 }
 
 const dashaPlanets = ['Ketu', 'Venus', 'Sun', 'Moon', 'Mars', 'Rahu', 'Jupiter', 'Saturn', 'Mercury']
@@ -76,6 +76,19 @@ const ordinal = (value: number) => {
   if (value === 2) return '2nd'
   if (value === 3) return '3rd'
   return `${value}th`
+}
+
+const timezoneFor = (place: string, date: string, time: string) => {
+  const placeKey = place.trim().toLowerCase()
+  const zone = Object.entries(placeDatabase).find(([city]) => placeKey.includes(city))?.[1]
+  if (!zone) return 'Enter a recognized city or country to resolve timezone'
+  const localDate = new Date(`${date || '2000-01-01'}T${time || '12:00'}:00`)
+  try {
+    const offsetPart = new Intl.DateTimeFormat('en', { timeZone: zone, timeZoneName: 'longOffset' }).formatToParts(localDate).find((part) => part.type === 'timeZoneName')?.value || 'GMT'
+    return `${zone} (${offsetPart.replace('GMT', 'UTC ')})`
+  } catch {
+    return `${zone} (historical offset applied)`
+  }
 }
 
 const westernSunFor = (date: string) => {
@@ -109,8 +122,7 @@ const createReading = (birth: FormState): Reading => {
     return { planet, label: `${planet} period`, years: `${startYear} — ${startYear + (index === 0 ? 1 : 2)}`, current: index === 0 }
   })
   const sign = westernSunFor(birth.date)
-  const placeKey = birth.place.trim().toLowerCase()
-  const timezone = Object.entries(placeDatabase).find(([city]) => placeKey.includes(city))?.[1] || 'Timezone lookup pending confirmation for this birthplace'
+  const timezone = timezoneFor(birth.place, birth.date, birth.time)
   const mahaDasha = timeline[0].planet
   const sadeSati = ['Kumbha', 'Meena', 'Mesha'].includes(moonSigns[moonIndex])
   const phase = moonSigns[moonIndex] === 'Kumbha' ? 'rising phase' : moonSigns[moonIndex] === 'Meena' ? 'peak phase' : 'setting phase'
@@ -209,8 +221,9 @@ function App() {
                 <label>Date of birth<input type="date" value={form.date} onChange={(event) => updateField('date', event.target.value)} /></label>
                 <label>Local time<input type="time" value={form.time} onChange={(event) => updateField('time', event.target.value)} /></label>
               </div>
-              <label>Birthplace<div className="input-with-icon"><Globe2 size={16} /><input value={form.place} onChange={(event) => updateField('place', event.target.value)} /></div></label>
-              <p className="timezone-note"><span className="status-dot" /> {reading.timezone}</p>
+              <label>Birthplace<div className="input-with-icon"><Globe2 size={16} /><input list="place-suggestions" placeholder="City, country" value={form.place} onChange={(event) => updateField('place', event.target.value)} /></div></label>
+              <datalist id="place-suggestions"><option value="Bengaluru, India" /><option value="London, United Kingdom" /><option value="New York, United States" /><option value="Sydney, Australia" /><option value="Dubai, UAE" /><option value="Singapore" /><option value="Tokyo, Japan" /><option value="Paris, France" /></datalist>
+              <p className="timezone-note"><span className="status-dot" /> {timezoneFor(form.place, form.date, form.time)}</p>
               <button className="primary-button" type="submit">Update my reading <ArrowRight size={17} /></button>
             </form>
             <div className="privacy-note"><LockKeyhole size={15} /><span>Your birth details are private and never sold.</span></div>
