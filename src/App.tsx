@@ -43,6 +43,13 @@ type Reading = {
   remedies: string[]
   crystal: string
   deity: string
+  rashi: string
+  lagna: string
+  nakshatra: string
+  nakshatraLord: string
+  tithi: string
+  antarDasha: string
+  vedicInterpretation: string
 }
 
 const initialForm: FormState = {
@@ -112,7 +119,10 @@ const createReading = (birth: FormState): Reading => {
   const lifePath = reduceNumerology(digits)
   const [, month, day] = birth.date.split('-').map(Number)
   const moonSigns = ['Mesha', 'Vrishabha', 'Mithuna', 'Karka', 'Simha', 'Kanya', 'Tula', 'Vrischika', 'Dhanu', 'Makara', 'Kumbha', 'Meena']
+  const nakshatras = ['Ashwini', 'Bharani', 'Krittika', 'Rohini', 'Mrigashira', 'Ardra', 'Punarvasu', 'Pushya', 'Magha', 'Hasta', 'Chitra', 'Swati', 'Anuradha', 'Mula', 'Shravana', 'Dhanishtha', 'Shatabhisha', 'Revati']
+  const nakshatraLords = ['Ketu', 'Venus', 'Sun', 'Moon', 'Mars', 'Rahu', 'Jupiter', 'Saturn', 'Mercury']
   const moonIndex = (day + month + Number(birth.time.replace(':', ''))) % moonSigns.length
+  const nakshatraIndex = (day * 2 + month + digits) % nakshatras.length
   const degree = `${String((day * 3 + month) % 29).padStart(2, '0')}° ${String((digits * 7) % 60).padStart(2, '0')}′`
   const year = new Date().getFullYear()
   const startIndex = (digits + day) % dashaPlanets.length
@@ -124,6 +134,7 @@ const createReading = (birth: FormState): Reading => {
   const sign = westernSunFor(birth.date)
   const timezone = timezoneFor(birth.place, birth.date, birth.time)
   const mahaDasha = timeline[0].planet
+  const antarDasha = dashaPlanets[(startIndex + 1) % dashaPlanets.length]
   const sadeSati = ['Kumbha', 'Meena', 'Mesha'].includes(moonSigns[moonIndex])
   const phase = moonSigns[moonIndex] === 'Kumbha' ? 'rising phase' : moonSigns[moonIndex] === 'Meena' ? 'peak phase' : 'setting phase'
   const numerologyThemes: Record<number, string> = { 1: 'initiative and self-direction', 2: 'cooperation and sensitivity', 3: 'expression and creative learning', 4: 'structure and patient craft', 5: 'freedom and adaptable thinking', 6: 'care, responsibility, and harmony', 7: 'study, privacy, and inner inquiry', 8: 'stewardship, ambition, and balance', 9: 'perspective, empathy, and completion', 11: 'intuition and inspired communication', 22: 'long-range building and service', 33: 'compassionate teaching and care' }
@@ -145,6 +156,13 @@ const createReading = (birth: FormState): Reading => {
     remedies: ['Keep a simple Saturday reflection or service practice if it feels meaningful.', 'Choose consistency over fear: sleep, budgeting, exercise, and honest communication are the strongest remedies.'],
     crystal: lifePath === 9 || lifePath === 33 ? 'Amethyst' : lifePath % 2 === 0 ? 'Moonstone' : 'Carnelian',
     deity: moonSigns[moonIndex] === 'Karka' || moonSigns[moonIndex] === 'Meena' ? 'Shiva or Devi traditions' : 'Ganesha tradition',
+    rashi: moonSigns[moonIndex],
+    lagna: moonSigns[(moonIndex + 3) % 12],
+    nakshatra: nakshatras[nakshatraIndex],
+    nakshatraLord: nakshatraLords[nakshatraIndex % nakshatraLords.length],
+    tithi: `${(day + month + digits) % 15 || 15}th lunar day`,
+    antarDasha,
+    vedicInterpretation: `${birth.name || 'You'}'s traditional Jyotisha profile places emphasis on ${moonSigns[moonIndex]} Rashi and ${nakshatras[nakshatraIndex]} Nakshatra. This combination can be used to reflect on emotional habits, attention, and the way responsibility is carried.`,
   }
 }
 
@@ -240,6 +258,10 @@ function App() {
             {generated && <div className="report-content">
               <div className="report-title-row"><div><p className="section-kicker">A reading for {submittedForm.name || 'you'}</p><h2>{activeTab === 'Overview' ? 'Your inner compass' : `${activeTab} overview`}</h2></div><span className="date-stamp">{submittedForm.date.split('-').reverse().join(' ')}<br />{submittedForm.time} LOCAL</span></div>
               <p className="report-lead">{reading.lead} This is a traditional interpretation for reflection, not a guarantee of what will happen.</p>
+
+              {activeTab === 'Vedic' && <section className="vedic-focus"><div className="focus-heading"><div><p className="section-kicker">Classical Jyotisha lens</p><h3>Read the chart from the Moon outward</h3></div><span>Demo calculation</span></div><p className="focus-intro">{reading.vedicInterpretation} The structure follows familiar concepts from traditional Jyotisha such as Rashi, Lagna, Nakshatra, Vimshottari Dasha, and Bhava reading. It does not reproduce passages from any book or claim a precise astronomical result.</p><div className="vedic-facts"><div><span>Chandra Rashi</span><strong>{reading.rashi}</strong><small>Moon sign</small></div><div><span>Lagna</span><strong>{reading.lagna}</strong><small>Ascendant sign</small></div><div><span>Nakshatra</span><strong>{reading.nakshatra}</strong><small>Lord: {reading.nakshatraLord}</small></div><div><span>Tithi</span><strong>{reading.tithi}</strong><small>Lunar day estimate</small></div></div><div className="dasha-pair"><div><span>Mahadasha</span><strong>{reading.mahaDasha}</strong><small>Main period in this reading</small></div><div><span>Antar Dasha</span><strong>{reading.antarDasha}</strong><small>Sub-period lens</small></div><p>Traditional reading prompt: observe which responsibilities, relationships, or learning themes feel active during this period. Use practical evidence before making decisions.</p></div><p className="accuracy-callout"><ShieldCheck size={16} /> For an accurate kundli, Nakshatra pada, houses, aspects, Sade Sati, and Dasha dates, connect Swiss Ephemeris with historical timezone and geocoding data.</p></section>}
+              {activeTab === 'Western' && <section className="focus-summary western-focus"><p className="section-kicker">Western astrology lens</p><h3>{reading.westernSun} Sun in a personal sky</h3><p>This traditional reading uses the Sun as a reflection prompt for identity, agency, and the qualities you may practice publicly. Exact Moon, rising sign, houses, and aspects require astronomical ephemeris calculations for the submitted birth moment.</p><div className="focus-pills"><span>Sun: {reading.westernSun}</span><span>Rising screen: {reading.lagna}</span><span>Major aspects: pending ephemeris</span></div></section>}
+              {activeTab === 'Numbers' && <section className="focus-summary numbers-focus"><p className="section-kicker">Numerology lens</p><h3>Life Path {reading.lifePath}: {reading.numerologyTheme}</h3><p>Numerology is presented as a symbolic language for reflection. Explore where this theme appears in your habits, choices, and relationships rather than treating the number as a fixed forecast.</p><div className="number-row"><div><strong>{reading.lifePath}</strong><span>Life Path</span></div><div><strong>{reduceNumerology(sumDigits(submittedForm.date) + submittedForm.name.replace(/\s/g, '').length)}</strong><span>Name + date theme</span></div><div><strong>{submittedForm.name ? submittedForm.name.trim().length : 0}</strong><span>Name letters</span></div></div></section>}
 
               <div className="insight-grid">
                 <article className="insight-card accent-yellow"><div className="card-icon"><Sun size={18} /></div><p className="card-label">Western sun</p><h3>{reading.westernSun}</h3><p>Traditionally associated with your outward style and the qualities you may practice in the world.</p><button type="button">Read interpretation <ArrowRight size={14} /></button></article>
